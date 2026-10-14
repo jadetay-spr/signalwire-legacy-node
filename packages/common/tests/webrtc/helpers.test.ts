@@ -1,5 +1,5 @@
 import { findElementByType } from '../../../common/src/util/helpers'
-import { sdpStereoHack, sdpMediaOrderHack, sdpBitrateHack, getDevices, assureDeviceId, filterIceServers } from '../../src/webrtc/helpers'
+import { sdpStereoHack, sdpMediaOrderHack, sdpBitrateHack, getDevices, assureDeviceId, filterIceServers, sdpHasUsableCandidate } from '../../src/webrtc/helpers'
 
 describe('Helpers browser functions', () => {
   describe('findElementByType', () => {
@@ -312,6 +312,32 @@ describe('Helpers browser functions', () => {
 
       expect(filteredIceServer).toEqual(iceServers)
 
+    })
+  })
+
+  describe('sdpHasUsableCandidate', () => {
+    it('should ignore mDNS host candidates', () => {
+      const sdp = 'm=audio 9 RTP/SAVPF 0\r\na=candidate:1 1 udp 2113937151 0aec7d55-2ea5.local 46018 typ host generation 0\r\n'
+      expect(sdpHasUsableCandidate(sdp)).toBe(false)
+    })
+
+    it('should accept srflx, prflx and relay candidates', () => {
+      expect(sdpHasUsableCandidate('a=candidate:2 1 udp 1677729535 34.1.2.3 46018 typ srflx raddr 0.0.0.0 rport 0\r\n')).toBe(true)
+      expect(sdpHasUsableCandidate('a=candidate:3 1 udp 1845501695 34.1.2.3 46018 typ prflx raddr 0.0.0.0 rport 0\r\n')).toBe(true)
+      expect(sdpHasUsableCandidate('a=candidate:4 1 udp 41885439 10.0.0.5 3478 typ relay raddr 1.2.3.4 rport 5\r\n')).toBe(true)
+    })
+
+    it('should accept host candidates only with a public address', () => {
+      expect(sdpHasUsableCandidate('a=candidate:5 1 udp 2113937151 34.1.2.3 46018 typ host\r\n')).toBe(true)
+      expect(sdpHasUsableCandidate('a=candidate:6 1 udp 2113939711 2600:1f18::1 46018 typ host\r\n')).toBe(true)
+      for (const ip of ['10.0.0.5', '172.16.0.1', '172.31.255.1', '192.168.1.10', '100.64.0.1', '169.254.1.1', '127.0.0.1', 'fd00::1', 'fe80::1', '::1']) {
+        expect(sdpHasUsableCandidate(`a=candidate:7 1 udp 2113937151 ${ip} 46018 typ host\r\n`)).toBe(false)
+      }
+    })
+
+    it('should return false without candidates', () => {
+      expect(sdpHasUsableCandidate('m=audio 9 RTP/SAVPF 0\r\n')).toBe(false)
+      expect(sdpHasUsableCandidate()).toBe(false)
     })
   })
 })

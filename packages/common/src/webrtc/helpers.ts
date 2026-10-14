@@ -392,6 +392,32 @@ const sdpHasVideo = (sdp: string = ''): boolean => {
   return /m=video/.test(sdp)
 }
 
+const _isPublicAddress = (address: string): boolean => {
+  if (address.includes(':')) {
+    return !/^(::1$|fe[89ab]|f[cd])/i.test(address)
+  }
+  const octets = address.split('.').map(Number)
+  if (octets.length !== 4 || octets.some(isNaN)) {
+    return false
+  }
+  const [a, b] = octets
+  return !(
+    a === 10 ||
+    a === 127 ||
+    (a === 100 && b >= 64 && b <= 127) ||
+    (a === 169 && b === 254) ||
+    (a === 172 && b >= 16 && b <= 31) ||
+    (a === 192 && b === 168)
+  )
+}
+
+const sdpHasUsableCandidate = (sdp: string = ''): boolean => {
+  return sdp.split(/\r?\n/).some((line) => {
+    const match = /^a=candidate:\S+ \d+ \S+ \d+ (\S+) \d+ typ (\S+)/.exec(line)
+    return Boolean(match) && (match[2] !== 'host' || _isPublicAddress(match[1]))
+  })
+}
+
 export {
   getUserMedia,
   getDevices,
@@ -414,4 +440,5 @@ export {
   filterIceServers,
   sdpHasAudio,
   sdpHasVideo,
+  sdpHasUsableCandidate,
 }
